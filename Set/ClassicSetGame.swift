@@ -15,6 +15,8 @@ class ClassicSetGame: ObservableObject {
     var cards: Array<Card> { Array(model.cards) }
     var matchingSet: Set<Card> { model.matchingSet }
     var cardsAreMatched: Bool? { model.areMatched }
+    var deck: Array<Card> { Array(model.deck).reversed() }
+    var discard: Array<Card> { model.discard }
     var deckIsEmpty: Bool { model.deck.count == 0 }
     
     // MARK: - Intent(s)

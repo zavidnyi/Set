@@ -10,12 +10,14 @@ import Foundation
 struct SetGame {
     private(set) var deck: Set<Card>
     private(set) var cards: Set<Card>
+    private(set) var discard: Array<Card>
     private(set) var matchingSet: Set<Card>
     private(set) var areMatched: Bool?
     
     init() {
         deck = []
         cards = []
+        discard = []
         matchingSet = []
         areMatched = nil
         for quality1 in 0 ..< 3 {
@@ -27,8 +29,9 @@ struct SetGame {
                 }
             }
         }
+        deck = Set(deck.shuffled())
         for _ in 0...12 {
-            let card = deck.randomElement()!
+            let card = deck.removeFirst()
             cards.insert(card)
             deck.remove(card)
         }
@@ -42,10 +45,15 @@ struct SetGame {
     }
     
     mutating func dealCards(_ amount: Int) {
+        if matchingSet.count == 3 && areMatched! {
+            matchingSet.forEach({
+                cards.remove($0)
+                discard.append($0)
+            })
+        }
         for _ in 0 ..< min(amount, deck.count) {
-            let card = deck.randomElement()!
+            let card = deck.removeFirst()
             cards.insert(card)
-            deck.remove(card)
         }
     }
     
@@ -64,8 +72,10 @@ struct SetGame {
             }
         } else {
             if areMatched! {
-                matchingSet.forEach({ cards.remove($0)} )
-                dealCards(3)
+                matchingSet.forEach({
+                    cards.remove($0)
+                    discard.append($0)
+                })
             }
             matchingSet.removeAll()
             areMatched = nil

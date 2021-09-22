@@ -13,25 +13,108 @@ struct ClassicSetGameView: View {
     @ObservedObject var gameManager: ClassicSetGame
     var body: some View {
         VStack {
-            Button {
-                gameManager.newGame()
-            } label: {
-                Text("NewGame").font(/*@START_MENU_TOKEN@*/.title/*@END_MENU_TOKEN@*/).padding()
+            newGame
+            gameBody
+            HStack {
+                deck
+                Spacer()
+                discardPile
             }
-            AspectVGrid(items: gameManager.cards, aspectRatio: 2/3, content: { card in
+        }
+    }
+    
+    @Namespace private var dealingNamespace
+    
+    @State private var dealt = Set<Int>()
+    
+    private func deal(_ card: ClassicSetGame.Card) { dealt.insert(card.id) }
+    
+    private func isDealt(_ card: ClassicSetGame.Card) -> Bool { dealt.contains(card.id) }
+    
+    private func dealAnimation(for card: ClassicSetGame.Card) -> Animation {
+        var delay = 0.0
+        if let index = gameManager.cards.firstIndex(where: { $0.id == card.id }) {
+            delay = Double(index) * (DealConstants.totalDealDuration / 81)
+        }
+        return Animation.easeInOut(duration: DealConstants.dealDuration).delay(delay)
+    }
+    
+    var newGame: some View {
+        Button {
+            gameManager.newGame()
+            dealt = []
+        } label: {
+            Text("NewGame").font(/*@START_MENU_TOKEN@*/.title/*@END_MENU_TOKEN@*/).padding()
+        }
+    }
+    
+    var gameBody:  some View {
+        AspectVGrid(items: gameManager.cards, aspectRatio: DealConstants.aspectRatio, content: { card in
+            if isDealt(card) {
                 CardView(color: ClassicSetGameView.colors[card[1]], inMatchingSet: gameManager.matchingSet.contains(card), matchCorrect: gameManager.cardsAreMatched, symbol: card[2], numberOfShapes: card[3], decor: card[4])
+                    .matchedGeometryEffect(id: card.id, in: dealingNamespace)
+                    .transition(AnyTransition.asymmetric(insertion: .identity, removal: .opacity))
                     .aspectRatio(2/3, contentMode: .fit)
-                        .onTapGesture {
+                    .onTapGesture {
+                        withAnimation {
                             gameManager.choose(card)
                         }
-            })
-            Button {
-                gameManager.deal3Cards()
-            } label: {
-                Text("Deal 3 more cards").font(.title).padding(.vertical)
+                    }
             }
-            .disabled(gameManager.deckIsEmpty)
+        })
+    }
+    
+    var deck: some View {
+        ZStack {
+            ForEach (gameManager.deck + gameManager.cards.filter { !isDealt($0) }) { card in
+                RoundedRectangle(cornerRadius: DealConstants.pileRadius)
+                    .fill(ClassicSetGameView.colors[card[1]])
+                    .matchedGeometryEffect(id: card.id, in: dealingNamespace)
+                    .transition(AnyTransition.asymmetric(insertion: .opacity, removal: .identity))
+                    .padding(4)
+            }
         }
+        .frame(width: DealConstants.pileWidth, height: DealConstants.pileHeight, alignment: /*@START_MENU_TOKEN@*/.center/*@END_MENU_TOKEN@*/)
+        .padding()
+        .onAppear{
+            for card in gameManager.cards {
+                withAnimation(dealAnimation(for: card)) {
+                    deal(card)
+                }
+            }
+        }
+        .onTapGesture {
+            withAnimation {
+                gameManager.deal3Cards()
+            }
+            for card in gameManager.cards.filter({ !isDealt($0) }) {
+                withAnimation(dealAnimation(for: card)) {
+                    deal(card)
+                }
+            }
+        }
+    }
+    
+    var discardPile: some View {
+        ZStack {
+            ForEach (gameManager.discard) { card in
+                CardView(color: ClassicSetGameView.colors[card[1]], inMatchingSet: gameManager.matchingSet.contains(card), matchCorrect: gameManager.cardsAreMatched, symbol: card[2], numberOfShapes: card[3], decor: card[4])
+                    .matchedGeometryEffect(id: card.id, in: dealingNamespace)
+                    .transition(AnyTransition.asymmetric(insertion: .identity, removal: .opacity))
+                    .aspectRatio(2/3, contentMode: .fit)
+
+            }
+        }
+        .frame(width: DealConstants.pileWidth, height: DealConstants.pileHeight, alignment: /*@START_MENU_TOKEN@*/.center/*@END_MENU_TOKEN@*/)
+    }
+    
+    private struct DealConstants {
+        static let aspectRatio: CGFloat = 2/3
+        static let pileHeight: CGFloat = 110
+        static let pileWidth = pileHeight * aspectRatio
+        static let pileRadius: CGFloat = 25
+        static let dealDuration: Double = 0.5
+        static let totalDealDuration: Double = 3
     }
 }
 
@@ -44,8 +127,10 @@ struct CardView: View {
     let symbol: Int
     let numberOfShapes: Int
     let decor: Int
+    
+    @State private var isReversed = false
     var body: some View {
-        ZStack {
+        ZStack(alignment: .center){
             let shape = RoundedRectangle(cornerRadius: 20)
             shape.foregroundColor(.white)
             if inMatchingSet {
@@ -93,6 +178,9 @@ struct CardView: View {
                 .aspectRatio(2/1, contentMode: .fit).padding(7).foregroundColor(color)
             }
         }
+        .shadow(color: inMatchingSet  && matchCorrect != nil && matchCorrect! ? .green : .clear, radius: 3)
+        .animation(.easeInOut)
+        .shakeEffect(withForce: inMatchingSet  && matchCorrect != nil && !matchCorrect! ? 1 : 0)
         .padding(4)
     }
 }
